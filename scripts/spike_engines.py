@@ -16,10 +16,10 @@ def _section(name: str) -> str:
 
 
 def spike_pymupdf() -> str:
-    import fitz
+    import pymupdf
 
     path = SAMPLE_DIR / "simple.pdf"
-    doc = fitz.open(path)
+    doc = pymupdf.open(path)
     page = doc[0]
     words = page.get_text("words")
     text = page.get_text("text").strip().splitlines()
@@ -27,33 +27,55 @@ def spike_pymupdf() -> str:
     box = list(words[0][:4]) if words else []
     doc.close()
     return (
-        f"PASS pymupdf {fitz.__doc__.splitlines()[0] if fitz.__doc__ else 'pymupdf'}\n"
+        f"PASS pymupdf version={pymupdf.__version__}\n"
         f"file={path.name} words={len(words)} first_line={first!r} first_bbox={box}\n"
     )
 
 
 def spike_docling() -> str:
-    from docling.document_converter import DocumentConverter
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
 
+    # Digital spike only. OCR stays off so Docling does not download a scan model.
+    options = PdfPipelineOptions()
+    options.do_ocr = False
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=options)
+        }
+    )
     path = SAMPLE_DIR / "simple.pdf"
-    result = DocumentConverter().convert(str(path))
+    result = converter.convert(str(path))
     markdown = result.document.export_to_markdown().strip()
     preview = " ".join(markdown.split())[:180]
     return f"PASS docling preview={preview!r}\n"
 
 
 def spike_paddleocr() -> str:
-    import fitz
+    import os
+
+    # PaddlePaddle 3.3 on Windows CPU crashes inside oneDNN. Use the plain CPU engine.
+    os.environ["FLAGS_use_mkldnn"] = "0"
+    os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+
+    import pymupdf
     from paddleocr import PaddleOCR
 
     pdf_path = SAMPLE_DIR / "scanned.pdf"
     image_path = ROOT / "outputs" / "scanned_page.png"
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     pix = doc[0].get_pixmap(dpi=150)
     pix.save(str(image_path))
     doc.close()
 
-    ocr = PaddleOCR(lang="en")
+    ocr = PaddleOCR(
+        lang="en",
+        enable_mkldnn=False,
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=False,
+    )
     if hasattr(ocr, "predict"):
         raw = ocr.predict(str(image_path))
     else:

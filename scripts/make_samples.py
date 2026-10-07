@@ -6,7 +6,7 @@ not that it invented a value.
 
 from pathlib import Path
 
-import fitz
+import pymupdf
 from docx import Document
 from openpyxl import Workbook
 from pptx import Presentation
@@ -24,7 +24,7 @@ EQUATION = "E = mc^2"
 
 
 def make_simple(path: Path) -> None:
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     page.insert_text((72, 80), HEADING, fontsize=18)
     page.insert_text((72, 120), BODY, fontsize=12)
@@ -34,12 +34,12 @@ def make_simple(path: Path) -> None:
 
 def make_scanned(path: Path) -> None:
     """Image-only PDF. No text layer, so OCR is the only way to read it."""
-    src = fitz.open()
+    src = pymupdf.open()
     page = src.new_page(width=612, height=792)
     page.insert_text((72, 120), SCAN_TEXT, fontsize=16)
     pix = page.get_pixmap(dpi=150)
 
-    out = fitz.open()
+    out = pymupdf.open()
     img_page = out.new_page(width=612, height=792)
     img_page.insert_image(img_page.rect, pixmap=pix)
     out.save(path)
@@ -48,7 +48,7 @@ def make_scanned(path: Path) -> None:
 
 
 def make_table(path: Path) -> None:
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     headers = ["Year", "Revenue", "EBITDA"]
     rows = [["2024", "110.7", "23.5"], ["2025", "128.5", "29.1"]]
@@ -57,7 +57,7 @@ def make_table(path: Path) -> None:
     grid = [headers, *rows]
     for r, row in enumerate(grid):
         for c, value in enumerate(row):
-            rect = fitz.Rect(
+            rect = pymupdf.Rect(
                 x0 + c * col_w,
                 y0 + r * row_h,
                 x0 + (c + 1) * col_w,
@@ -70,7 +70,7 @@ def make_table(path: Path) -> None:
 
 
 def make_equation(path: Path) -> None:
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     page.insert_text((72, 80), "Equation sample", fontsize=14)
     page.insert_text((72, 140), EQUATION, fontsize=20)
@@ -79,14 +79,14 @@ def make_equation(path: Path) -> None:
 
 
 def make_chart(path: Path) -> None:
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
     page.insert_text((72, 60), "Figure 1 Revenue", fontsize=14)
     labels = [("2023", 92.4), ("2024", 110.7), ("2025", 128.5)]
     x = 90
     for label, value in labels:
         height = value * 2
-        rect = fitz.Rect(x, 400 - height, x + 50, 400)
+        rect = pymupdf.Rect(x, 400 - height, x + 50, 400)
         page.draw_rect(rect, color=(0.1, 0.3, 0.6), fill=(0.2, 0.4, 0.7))
         page.insert_text((x, 418), label, fontsize=11)
         page.insert_text((x, 400 - height - 14), str(value), fontsize=11)

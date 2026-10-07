@@ -1,14 +1,14 @@
-# Pinned after the Step 1 install on Python 3.12.
-# Versions below are the intended set; spike_engines.py records what actually imported.
-pydantic>=2
-pymupdf
-docling
-paddleocr
-paddlepaddle
-opencv-python
-pillow
-openpyxl
-python-docx
-python-pptx
-numpy
-pytest
+# Pinned from the Python 3.12 install on 2026-10-07.
+# Use: py -3.12 -m venv .venv && .venv\Scripts\python -m pip install -r requirements.txt
+pydantic==2.13.5
+pymupdf==1.28.2
+docling==2.135.0
+paddleocr==3.7.0
+paddlepaddle==3.3.1
+opencv-python==5.0.0.93
+pillow==12.3.0
+openpyxl==3.1.5
+python-docx==1.2.0
+python-pptx==1.0.2
+numpy==2.3.5
+pytest==9.1.1
