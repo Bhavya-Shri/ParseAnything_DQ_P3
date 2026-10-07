@@ -1,5 +1,9 @@
 # Integrating P3 extraction
 
+The call is now inside this repo. `parse_document(path)` runs P2 on a PDF, maps each region onto a P3 route, calls `extract`, then runs P2 assembly. A DOCX, XLSX, or PPTX skips layout and calls `extract_document(path)`. P2 route names `native`, `table`, `equation`, `figure`, and `vlm` are translated before they reach `extract`.
+
+
+
 P3 is frozen on branch `feat/p3-extraction` in `https://github.com/Bhavya-Shri/ParseAnything_DQ_P3.git` (commit `d10fb0c`).
 
 P3 reads one region and returns blocks. It does not build the document, choose reading order, repair numbers, or draw the UI.

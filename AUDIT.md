@@ -203,3 +203,16 @@ No new extractors after this.
 - P1 gets the orchestrator calls: `extract(region, context)` for PDF regions, `extract_document(path)` for DOCX, XLSX, and PPTX, plus how to swap in `pipeline/schema.py`.
 - P2 gets the region dict, the route table, coordinate rules, and what to fill after extraction (`reading_order`, units).
 - The shared section lists content shapes, failure codes, and the paths that were not run.
+
+---
+
+## 2026-10-08 — P1 and P2 wired to P3
+
+- Brought P1's `pipeline/`, `output/`, and `cli.py`, and P2's `routing/` and `assembly/`, into this repo from the Person-2 tree.
+- `parse_document` on a PDF runs P2, then `extract` for each region. Office files call `extract_document` and skip layout.
+- P2 route names are mapped in `pipeline/p3_bridge.py`: `native` to `native_text`, `table` to `docling_table` or `paddle_table`, `equation` to `formula`, `figure` to `skip`, and `vlm` back to the text route. Reading order from P2 is written onto the blocks after extraction, then P2 assembly runs.
+- The markdown writer reads `content["text"]`, table rows, and `content["latex"]`.
+- Layout detection uses `enable_mkldnn=False`. Docling is imported only when an Office file goes through ingestion.
+- `simple.pdf`, `sample.docx`, and `sample.xlsx` pass through `parse_document`.
+
+Check: the wired pipeline plus the extractor, schema, and office tests passed. One collection test failed because Docling was imported at startup. That import is now lazy, and `pytest tests/test_extractors.py tests/test_schema.py tests/test_pipeline.py tests/test_failures.py tests/test_office.py` passed 54.
