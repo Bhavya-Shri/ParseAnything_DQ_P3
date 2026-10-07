@@ -11,4 +11,11 @@ openpyxl==3.1.5
 python-docx==1.2.0
 python-pptx==1.0.2
 numpy==2.3.5
+pylatexenc==2.11
+einops==0.8.2
+ftfy==6.3.1
+premailer==3.10.0
+scikit-learn==1.9.1
+sentencepiece==0.2.2
+tiktoken==0.14.0
 pytest==9.1.1

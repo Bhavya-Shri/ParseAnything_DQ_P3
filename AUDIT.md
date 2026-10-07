@@ -123,3 +123,18 @@ Next is Step 6, Office files.
 Check: `pytest tests/test_office.py tests/test_tables.py tests/test_extractors.py` — 20 passed.
 
 Next is Step 7, equations on `equation.pdf`.
+
+---
+
+## 2026-10-08 — Step 7 complete: equations
+
+- Added `extractors/equations.py` and registered `route="formula"`.
+- The crop goes to PaddleOCR formula recognition (`PP-FormulaNet_plus-M`), with oneDNN turned off. A blank crop is not sent to the model.
+- The LaTeX string is checked with pylatexenc. `parsed: true` keeps the block accepted. A string that does not parse sets `formula_parse_fail`, status `needs_review`, and a history note that the VLM fallback is not available yet.
+- On `equation.pdf` the text layer is `E = mc^2`, stored as `E = mc^{2}`, and `parsed` is true. The formula model returned `E=m c\cdot2`. Both strings are kept. Status is `needs_review` with `EXTRACTION_CONFLICT`, because the two readings do not match. The text layer stays in `latex`.
+- A blank page returns one failed block with `FORMULA_FAILED` and does not raise.
+- Formula recognition needed the PaddleX OCR extra packages that were not already installed: einops, ftfy, premailer, scikit-learn, sentencepiece, tiktoken. Those are pinned in `requirements.txt`, along with pylatexenc.
+
+Check: `pytest tests/test_extractors.py tests/test_equations.py tests/test_office.py tests/test_tables.py` — 23 passed.
+
+Next is Step 8, charts.

@@ -72,7 +72,7 @@ def test_extractor_exception_does_not_escape():
 
 
 def test_missing_route_uses_can_handle():
-    register("office", _TextOnly())
+    register("widget_probe", _TextOnly())
     try:
         blocks = extract(
             {
@@ -84,7 +84,7 @@ def test_missing_route_uses_can_handle():
             {"file_path": "sample_docs/simple.pdf"},
         )
     finally:
-        unregister("office")
+        unregister("widget_probe")
     assert blocks[0].status == "accepted"
     assert blocks[0].extractor == "text-only"
     assert blocks[0].content == {"text": "hello"}
