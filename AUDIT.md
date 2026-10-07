@@ -194,3 +194,12 @@ Not claimed:
 Check: `pytest tests/test_extractors.py tests/test_ocr.py tests/test_tables.py tests/test_equations.py tests/test_office.py tests/test_charts.py tests/test_vlm.py` — 34 passed.
 
 No new extractors after this.
+
+---
+
+## 2026-10-08 — Integration guide for P1 and P2
+
+- Added `INTEGRATION_P1_P2.md`. It is the handoff for the frozen branch.
+- P1 gets the orchestrator calls: `extract(region, context)` for PDF regions, `extract_document(path)` for DOCX, XLSX, and PPTX, plus how to swap in `pipeline/schema.py`.
+- P2 gets the region dict, the route table, coordinate rules, and what to fill after extraction (`reading_order`, units).
+- The shared section lists content shapes, failure codes, and the paths that were not run.
