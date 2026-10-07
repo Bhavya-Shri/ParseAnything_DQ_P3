@@ -94,3 +94,18 @@ Next is Step 4, OCR on `scanned.pdf`.
 Check: `pytest tests/test_extractors.py tests/test_ocr.py` — 15 passed.
 
 Next is Step 5, tables on `table.pdf`.
+
+---
+
+## 2026-10-08 — Step 5 complete: tables
+
+- Added `extractors/tables.py` and registered `docling_table` and `paddle_table`.
+- A ruled digital table is read from the PDF vector grid. Each cell is filled with the PyMuPDF words inside that rectangle. `table.pdf` returns one `table` block, not a paragraph. The header is `Year`, `Revenue`, `EBITDA`. The cell `128.5` keeps its own bbox, numeric value, and `repaired: false`.
+- Every body row has the same column count after spans. A colspan in the header still lines up with the body.
+- When a digital page has no ruled grid, the same route falls back to Docling with OCR off and refills each cell from PyMuPDF words. That path was not needed for `table.pdf`.
+- `paddle_table` calls PaddleOCR table recognition on the crop and parses the HTML plus cell boxes. It is not run by the default test, so it does not download the table models until a scanned table is sent.
+- Nothing here merges a table onto the next page, and nothing repairs a digit.
+
+Check: `pytest tests/test_tables.py tests/test_extractors.py` — 16 passed.
+
+Next is Step 6, Office files.
