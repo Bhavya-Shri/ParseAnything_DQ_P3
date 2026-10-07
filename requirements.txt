@@ -1,0 +1,14 @@
+# Pinned after the Step 1 install on Python 3.12.
+# Versions below are the intended set; spike_engines.py records what actually imported.
+pydantic>=2
+pymupdf
+docling
+paddleocr
+paddlepaddle
+opencv-python
+pillow
+openpyxl
+python-docx
+python-pptx
+numpy
+pytest
