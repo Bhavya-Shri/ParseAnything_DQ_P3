@@ -138,3 +138,17 @@ Next is Step 7, equations on `equation.pdf`.
 Check: `pytest tests/test_extractors.py tests/test_equations.py tests/test_office.py tests/test_tables.py` — 23 passed.
 
 Next is Step 8, charts.
+
+---
+
+## 2026-10-08 — Step 8 complete: charts
+
+- Added `extractors/charts.py` and registered `route="chart"`. The extractor only runs when P2 sets that route.
+- A PPTX sent on this route uses the embedded series, method `pptx_native`. `sample.pptx` still has the Revenue points, including `128.5`. `agreement` stays null because a second path has not run.
+- `chart.pdf` is a drawn bar chart. The bars are the filled rectangles that share a baseline. Each value is the number printed above that bar, and each tick is the label printed below it. The series is `Revenue` from the caption `Figure 1 Revenue`. Points are `2023`/`92.4`, `2024`/`110.7`, `2025`/`128.5`. Method is `geometry`. `agreement` is null. The unit is left empty.
+- A caption with no bars becomes a `figure` block, status `needs_review`, with the caption text and a crop path. No series is invented. A blank page returns `CHART_FAILED` and does not raise.
+- Pixel measurement with OpenCV is not used. This sample's values are already printed on the bars.
+
+Check: `pytest tests/test_extractors.py tests/test_charts.py tests/test_equations.py tests/test_office.py tests/test_tables.py` — 27 passed.
+
+Next is Step 9, the VLM fallback.

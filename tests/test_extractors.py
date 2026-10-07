@@ -52,10 +52,10 @@ def test_unknown_route_returns_failed_block():
     assert "not-a-route" in block.history[0]["note"]
 
 
-def test_reserved_route_fails_until_registered():
+def test_chart_route_without_a_file_fails():
     blocks = extract({"id": "r3", "route": "chart", "page": 1, "bbox": [0, 0, 10, 10]})
     assert blocks[0].status == "failed"
-    assert "chart" in blocks[0].history[0]["note"]
+    assert blocks[0].history[0]["error_code"] == "CHART_FAILED"
 
 
 def test_extractor_exception_does_not_escape():
