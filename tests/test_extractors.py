@@ -23,7 +23,7 @@ class _TextOnly(Extractor):
     name = "text-only"
 
     def can_handle(self, region) -> bool:
-        return region.get("type") == "text"
+        return region.get("type") == "widget"
 
     def extract(self, region, context) -> list:
         return [
@@ -53,17 +53,19 @@ def test_unknown_route_returns_failed_block():
 
 
 def test_reserved_route_fails_until_registered():
-    blocks = extract({"id": "r3", "route": "ocr", "page": 1, "bbox": [0, 0, 10, 10]})
+    blocks = extract({"id": "r3", "route": "chart", "page": 1, "bbox": [0, 0, 10, 10]})
     assert blocks[0].status == "failed"
-    assert "ocr" in blocks[0].history[0]["note"]
+    assert "chart" in blocks[0].history[0]["note"]
 
 
 def test_extractor_exception_does_not_escape():
+    from extractors.ocr import OcrExtractor
+
     register("ocr", _Boom())
     try:
         blocks = extract({"id": "r4", "route": "ocr", "page": 2, "bbox": [0, 0, 5, 5]})
     finally:
-        unregister("ocr")
+        register("ocr", OcrExtractor())
     assert len(blocks) == 1
     assert blocks[0].status == "failed"
     assert "engine blew up" in blocks[0].history[0]["note"]
@@ -75,10 +77,9 @@ def test_missing_route_uses_can_handle():
         blocks = extract(
             {
                 "id": "r5",
-                "type": "text",
+                "type": "widget",
                 "page": 1,
                 "bbox": [10, 20, 30, 40],
-                "is_scanned": True,
             },
             {"file_path": "sample_docs/simple.pdf"},
         )

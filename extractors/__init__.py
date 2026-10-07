@@ -3,10 +3,10 @@
     extract(region, context) -> list[Block]
 
 Routes that return blocks today:
-    skip, native_text
+    skip, native_text, ocr
 
 Routes reserved for later steps. They fail clearly until an extractor is registered:
-    ocr, docling_table, paddle_table, chart, formula, office
+    docling_table, paddle_table, chart, formula, office
 """
 
 from extractors.base import Extractor
@@ -88,5 +88,7 @@ def _first_handler(region) -> Extractor | None:
 
 
 from extractors.native_text import NativeTextExtractor
+from extractors.ocr import OcrExtractor
 
 register("native_text", NativeTextExtractor())
+register("ocr", OcrExtractor())

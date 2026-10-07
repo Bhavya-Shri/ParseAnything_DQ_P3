@@ -79,3 +79,18 @@ Next is Step 3, native text on `simple.pdf`.
 Check: `pytest tests/test_extractors.py` — 13 passed. Docling and PaddleOCR were not imported.
 
 Next is Step 4, OCR on `scanned.pdf`.
+
+---
+
+## 2026-10-08 — Step 4 complete: OCR
+
+- Added `extractors/ocr.py` and registered it on `route="ocr"`.
+- The page is rendered, the region is cropped, and the raw crop is saved under `outputs/crops/`. That path is stored in `history`. A cleaned copy is sent to PaddleOCR only when the crop is blurry, low-contrast, or skewed. The raw file is not overwritten.
+- PaddleOCR runs with `enable_mkldnn=False`, the same Windows CPU workaround as the Step 1 spike. Word boxes are requested. Line confidence is the character-weighted mean. Below `0.70` the block gets `ocr_low_conf`. No VLM call.
+- `scanned.pdf` returns one paragraph block whose text includes `128.5` and `crore`, with a four-number bbox and a confidence between 0 and 1.
+- A blank page returns one failed block with `OCR_FAILED` and does not crash.
+- A missing route no longer sends every scanned region through OCR ahead of another registered handler. OCR takes `route="ocr"`, or a scanned text region when no route was set.
+
+Check: `pytest tests/test_extractors.py tests/test_ocr.py` — 15 passed.
+
+Next is Step 5, tables on `table.pdf`.

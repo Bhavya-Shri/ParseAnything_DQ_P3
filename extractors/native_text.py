@@ -19,7 +19,11 @@ class NativeTextExtractor(Extractor):
         route = region_field(region, "route")
         if route not in (None, "", "native_text"):
             return False
-        return not bool(region_field(region, "is_scanned"))
+        if region_field(region, "is_scanned"):
+            return False
+        if route == "native_text":
+            return True
+        return region_field(region, "type") in (None, "", "text", "heading", "paragraph")
 
     def extract(self, region, context) -> list:
         context = context or {}
