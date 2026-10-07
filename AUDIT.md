@@ -165,3 +165,32 @@ Next is Step 9, the VLM fallback.
 Check: `pytest tests/test_vlm.py tests/test_extractors.py tests/test_charts.py tests/test_equations.py tests/test_office.py tests/test_tables.py` — 32 passed. `pytest tests/test_ocr.py` — 2 passed.
 
 Next is Step 10, handoff and freeze.
+
+---
+
+## 2026-10-08 — Step 10 complete: handoff
+
+P1 imports `extract(region, context)` from `extractors`. This repo has no `pipeline/orchestrator.py`. Office files can also use `extract_document(path)`. The route list at the top of `extractors/__init__.py` is frozen: `skip`, `native_text`, `ocr`, `docling_table`, `paddle_table`, `office`, `formula`, `chart`. An unknown route returns one failed block.
+
+Checklist:
+
+- Native text works on `simple.pdf`.
+- OCR works on `scanned.pdf`.
+- Tables work on `table.pdf`, with a bbox on each cell.
+- `equation.pdf` returns LaTeX, `parsed` is true, and the formula-model disagreement is flagged.
+- Charts: bar values on `chart.pdf`, native series on `sample.pptx`. Line charts and charts without printed values are not read.
+- DOCX, XLSX, and PPTX work on the samples.
+- The VLM fallback exists and is not called on a clean page.
+- A failed region does not raise.
+- Blocks are built with `Block`, an extractor name, and a bbox or sheet/cell provenance.
+
+Not claimed:
+
+- The live `paddle_table` model was not run. A failure returns `TABLE_FAILED`.
+- Docling's table fallback was not needed for `table.pdf` and was not run.
+- No live VLM call. A missing key returns `vlm_unavailable`.
+- `pipeline/schema.py` is not in this repo. Blocks use the local stub until P1's schema arrives.
+
+Check: `pytest tests/test_extractors.py tests/test_ocr.py tests/test_tables.py tests/test_equations.py tests/test_office.py tests/test_charts.py tests/test_vlm.py` — 34 passed.
+
+No new extractors after this.

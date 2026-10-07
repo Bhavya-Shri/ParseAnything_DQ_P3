@@ -1,14 +1,25 @@
 """Public extraction entry for P1.
 
+    from extractors import extract, extract_document, read_crop, vlm_call_count
     extract(region, context) -> list[Block]
 
-Routes that return blocks today:
+This repo has no pipeline/orchestrator.py. That file belongs to P1.
+P1 imports extract from here. Office files can also use extract_document(path).
+P4 and P5 use read_crop and vlm_call_count for one hard crop.
+
+Routes that return blocks:
     skip, native_text, ocr, docling_table, paddle_table, office, formula, chart
 
-P1 can also call extract_document(path) for a whole DOCX, XLSX, or PPTX.
-P4 and P5 call read_crop(image, task, hint) and vlm_call_count() for a single hard crop.
+An unknown route returns one failed block. It does not return an empty success.
 
-An unknown route returns a failed block.
+Not claimed:
+    paddle_table's live model was not run; a failure returns TABLE_FAILED
+    Docling's table fallback was not needed for table.pdf and was not run
+    no live VLM call; a missing key returns vlm_unavailable
+    line charts and charts without printed values are not read
+    pipeline/schema.py is absent, so blocks use the local stub
+
+No new routes after this handoff.
 """
 
 from extractors.base import Extractor
