@@ -53,9 +53,9 @@ def test_unknown_route_returns_failed_block():
 
 
 def test_reserved_route_fails_until_registered():
-    blocks = extract({"id": "r3", "route": "native_text", "page": 1, "bbox": [0, 0, 10, 10]})
+    blocks = extract({"id": "r3", "route": "ocr", "page": 1, "bbox": [0, 0, 10, 10]})
     assert blocks[0].status == "failed"
-    assert "native_text" in blocks[0].history[0]["note"]
+    assert "ocr" in blocks[0].history[0]["note"]
 
 
 def test_extractor_exception_does_not_escape():
@@ -70,17 +70,96 @@ def test_extractor_exception_does_not_escape():
 
 
 def test_missing_route_uses_can_handle():
-    register("native_text", _TextOnly())
+    register("office", _TextOnly())
     try:
         blocks = extract(
-            {"id": "r5", "type": "text", "page": 1, "bbox": [10, 20, 30, 40]},
+            {
+                "id": "r5",
+                "type": "text",
+                "page": 1,
+                "bbox": [10, 20, 30, 40],
+                "is_scanned": True,
+            },
             {"file_path": "sample_docs/simple.pdf"},
         )
     finally:
-        unregister("native_text")
+        unregister("office")
     assert blocks[0].status == "accepted"
     assert blocks[0].extractor == "text-only"
     assert blocks[0].content == {"text": "hello"}
+
+
+def _page_region(bbox):
+    return {
+        "id": "page1",
+        "type": "text",
+        "page": 1,
+        "bbox": bbox,
+        "route": "native_text",
+        "is_scanned": False,
+    }
+
+
+def test_native_text_reads_simple_pdf():
+    blocks = extract(
+        _page_region([0, 0, 612, 792]),
+        {"file_path": "sample_docs/simple.pdf", "format": "pdf"},
+    )
+    assert blocks
+    assert all(block.status == "accepted" for block in blocks)
+    heading = next(block for block in blocks if block.type == "heading")
+    assert heading.content["text"] == "Annual Financial Report 2025"
+    assert heading.content["level"] == 1
+    assert heading.page_start == 1
+    assert len(heading.bbox) == 4
+    assert heading.bbox[0] < heading.bbox[2]
+    assert heading.bbox[1] < heading.bbox[3]
+    assert heading.bbox[2] <= 612
+    assert heading.bbox[3] <= 792
+    body = next(block for block in blocks if block.type == "paragraph")
+    assert "FY2025" in body.content["text"]
+    assert body.confidence.extraction == 0.90
+    assert body.extractor == "pymupdf"
+
+
+def test_native_text_respects_region_bbox():
+    blocks = extract(
+        _page_region([0, 50, 612, 95]),
+        {"file_path": "sample_docs/simple.pdf", "format": "pdf"},
+    )
+    assert len(blocks) == 1
+    assert blocks[0].type == "heading"
+    assert blocks[0].content["text"] == "Annual Financial Report 2025"
+
+
+def test_docling_agreement_raises_confidence():
+    blocks = extract(
+        _page_region([0, 0, 612, 792]),
+        {
+            "file_path": "sample_docs/simple.pdf",
+            "docling_item": (
+                "Annual Financial Report 2025 "
+                "The company delivered strong financial performance during FY2025."
+            ),
+        },
+    )
+    assert all(block.confidence.extraction == 0.97 for block in blocks)
+    assert all(block.status == "accepted" for block in blocks)
+    assert any(entry["engine"] == "docling" for entry in blocks[0].history)
+
+
+def test_docling_disagreement_needs_review():
+    blocks = extract(
+        _page_region([0, 0, 612, 792]),
+        {
+            "file_path": "sample_docs/simple.pdf",
+            "docling_item": "This text is unrelated.",
+        },
+    )
+    assert all(block.status == "needs_review" for block in blocks)
+    assert blocks[0].content["text"] == "Annual Financial Report 2025"
+    assert blocks[0].confidence.extraction < 0.97
+    assert any(entry["engine"] == "docling" for entry in blocks[0].history)
 
 
 def test_make_block_sets_required_fields():

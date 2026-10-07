@@ -65,3 +65,17 @@ extract(region, context) -> list[Block]
 `region` needs `id`, `type`, `page`, `bbox`, `route`, `is_scanned`. `context` carries `file_path`, `format`, `page_size`, `page_image`, `words`, and an optional `docling_item`.
 
 Next is Step 3, native text on `simple.pdf`.
+
+---
+
+## 2026-10-07 — Step 3 complete: native text
+
+- Added `extractors/native_text.py` and registered it on `route="native_text"`.
+- PyMuPDF words inside the region become heading and paragraph blocks. A line at 16pt or larger is a heading. Wrapped lines in the same paragraph stay one block.
+- Each block has `content.text`, a four-number bbox, `page_start`, and `extractor="pymupdf"`. With no second reading, `confidence.extraction` is `0.90`.
+- Docling is not called from this extractor. When `context["docling_item"]` is already present, the strings are compared. Agreement at 0.98 or above sets confidence to `0.97`. A disagreement keeps the PyMuPDF text, stores the Docling text in `history`, and sets `needs_review`.
+- `simple.pdf` returns the heading `Annual Financial Report 2025` and the FY2025 paragraph. A bbox around the heading does not include the paragraph.
+
+Check: `pytest tests/test_extractors.py` — 13 passed. Docling and PaddleOCR were not imported.
+
+Next is Step 4, OCR on `scanned.pdf`.
