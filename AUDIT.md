@@ -42,3 +42,26 @@ Two setup constraints, both recorded in the spike script:
 Machine for this run: CPU, no GPU. Step 1 exit check passed. Next is Step 2, the extractor interface.
 
 - Added `.gitattributes` so PDF and Office samples stay binary. Git had warned it would rewrite line endings in those files.
+
+---
+
+## 2026-10-07 — Step 2 complete: extractor interface
+
+- Added `extractors/base.py` with `Extractor.can_handle` and `Extractor.extract`.
+- Added `extract(region, context) -> list[Block]` in `extractors/__init__.py`. This is the function P1 should call.
+- `route="skip"` returns no blocks. Any other route with no registered extractor returns one `status="failed"` block and does not raise. An extractor that throws is caught the same way. The error code sits in `history`.
+- `extractors/utils.py` builds every block through `make_block`, converts bottom-left boxes with `to_top_left`, and crops a page image with `crop_region`.
+- P1 has not published `pipeline/schema.py` in this repo. `extractors/schema_stub.py` is a temporary copy of the Block contract. `extractors/schema_ref.py` imports P1's module when it exists and the stub until then. Delete the stub once the real schema is here. Do not add fields to the stub.
+- Routes that return real content later: `native_text`, `ocr`, `docling_table`, `paddle_table`, `chart`, `formula`, `office`. They fail clearly until those steps land.
+
+Check: `pytest tests/test_extractors.py` — 9 passed. Docling and PaddleOCR were not imported.
+
+Contract for P1 and P2:
+
+```python
+extract(region, context) -> list[Block]
+```
+
+`region` needs `id`, `type`, `page`, `bbox`, `route`, `is_scanned`. `context` carries `file_path`, `format`, `page_size`, `page_image`, `words`, and an optional `docling_item`.
+
+Next is Step 3, native text on `simple.pdf`.
