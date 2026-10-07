@@ -40,3 +40,5 @@ Two setup constraints, both recorded in the spike script:
 - PaddlePaddle 3.3.1 on this Windows CPU crashes inside oneDNN (`ConvertPirAttribute2RuntimeAttribute`). The spike sets `enable_mkldnn=False`.
 
 Machine for this run: CPU, no GPU. Step 1 exit check passed. Next is Step 2, the extractor interface.
+
+- Added `.gitattributes` so PDF and Office samples stay binary. Git had warned it would rewrite line endings in those files.
