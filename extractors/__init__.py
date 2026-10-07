@@ -6,6 +6,7 @@ Routes that return blocks today:
     skip, native_text, ocr, docling_table, paddle_table, office, formula, chart
 
 P1 can also call extract_document(path) for a whole DOCX, XLSX, or PPTX.
+P4 and P5 call read_crop(image, task, hint) and vlm_call_count() for a single hard crop.
 
 An unknown route returns a failed block.
 """
@@ -94,6 +95,7 @@ from extractors.charts import ChartExtractor
 from extractors.equations import EquationExtractor
 from extractors.office import OfficeExtractor, extract_document
 from extractors.tables import TableExtractor
+from extractors.vlm import read_crop, vlm_call_count
 
 register("native_text", NativeTextExtractor())
 register("ocr", OcrExtractor())
@@ -103,4 +105,4 @@ register("office", OfficeExtractor())
 register("formula", EquationExtractor())
 register("chart", ChartExtractor())
 
-__all__ = ["extract", "extract_document", "register", "unregister"]
+__all__ = ["extract", "extract_document", "read_crop", "register", "unregister", "vlm_call_count"]

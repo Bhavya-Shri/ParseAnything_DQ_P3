@@ -152,3 +152,16 @@ Next is Step 8, charts.
 Check: `pytest tests/test_extractors.py tests/test_charts.py tests/test_equations.py tests/test_office.py tests/test_tables.py` — 27 passed.
 
 Next is Step 9, the VLM fallback.
+
+---
+
+## 2026-10-08 — Step 9 complete: VLM fallback
+
+- Added `extractors/vlm.py`. `read_crop(image, task, hint)` sends one crop to an OpenAI-compatible chat endpoint. The task is `ocr`, `table_cell`, `latex`, or `chart`. `vlm_call_count()` is the count P5 can show. Both are exported from `extractors`.
+- The key, model, and base URL come from the environment or `.env`. A missing key returns `vlm_unavailable` and does not raise or increment the count. A client error is returned on the result and does not raise. Reported confidence is capped at 0.85 unless the caller passes `agreed=True`.
+- Escalation only: empty or low-confidence OCR, an equation whose LaTeX does not parse, and a chart caption with no readable bars. Tables are left raw. A successful OCR read and a parsed equation do not call the VLM.
+- No live call was made. There is no key in this environment. The default test mocks the client.
+
+Check: `pytest tests/test_vlm.py tests/test_extractors.py tests/test_charts.py tests/test_equations.py tests/test_office.py tests/test_tables.py` — 32 passed. `pytest tests/test_ocr.py` — 2 passed.
+
+Next is Step 10, handoff and freeze.

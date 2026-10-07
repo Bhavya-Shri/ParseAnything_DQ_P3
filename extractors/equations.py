@@ -45,6 +45,7 @@ class EquationExtractor(Extractor):
             return [_fail(region, model_note or "No formula text recognized")]
 
         page_number = int(region_field(region, "page", 1) or 1)
+        score = 0.9 if parsed else 0.4
         history = [
             {"engine": "pymupdf", "confidence": 0.9 if native else 0.0, "note": native},
             {"engine": self.name, "confidence": 0.85 if parsed else 0.4, "note": model or model_note},
@@ -54,7 +55,28 @@ class EquationExtractor(Extractor):
         if not parsed:
             status = "needs_review"
             flags.append("formula_parse_fail")
-            history.append({"engine": "vlm", "confidence": 0.0, "note": "vlm_unavailable"})
+            vlm = _ask_vlm(region, context, chosen)
+            history.append(
+                {
+                    "engine": "vlm",
+                    "confidence": vlm["confidence"],
+                    "note": vlm.get("note") or vlm.get("text") or "vlm_unavailable",
+                    "task": "latex",
+                }
+            )
+            if "vlm_unavailable" in vlm["flags"]:
+                flags.append("vlm_unavailable")
+            elif vlm["text"] and latex_parses(vlm["text"]):
+                if chosen and chosen != vlm["text"]:
+                    other = chosen
+                chosen = vlm["text"]
+                parsed = True
+                score = vlm["confidence"]
+                if other and _similarity(chosen, other) < 0.8:
+                    status = "needs_review"
+                else:
+                    status = "accepted"
+                    flags = [flag for flag in flags if flag != "formula_parse_fail"]
         elif other and _similarity(chosen, other) < 0.8:
             status = "needs_review"
             history.append(
@@ -72,7 +94,7 @@ class EquationExtractor(Extractor):
                 extractor=self.name,
                 bbox=bbox or _region_or_empty(region),
                 page_start=page_number if page_number >= 1 else 1,
-                extraction=0.9 if parsed else 0.4,
+                extraction=score,
                 block_type="equation",
                 content={
                     "latex": chosen,
@@ -246,6 +268,28 @@ def _value(item, key):
         return item[key]
     except Exception:
         return None
+
+
+def _ask_vlm(region, context, hint: str) -> dict:
+    try:
+        from extractors.ocr import _open_crop_source
+        from extractors.utils import crop_region
+        from extractors.vlm import read_crop
+
+        image, page_size, region_box = _open_crop_source(region, context)
+        if image is None:
+            return {"text": "", "confidence": 0.0, "flags": ["vlm_unavailable"], "note": "vlm_unavailable"}
+        crop = crop_region(image, region_box, page_size)
+        result = read_crop(crop, "latex", hint=hint)
+        result["text"] = _normalize(result.get("text") or "")
+        return result
+    except Exception as exc:
+        return {
+            "text": "",
+            "confidence": 0.0,
+            "flags": ["vlm_unavailable"],
+            "note": f"{type(exc).__name__}: {exc}",
+        }
 
 
 def _fail(region, message: str):

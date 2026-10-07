@@ -186,6 +186,39 @@ def _series_name(caption: str):
 def _unreadable_figure(region, path, context, caption: str, page_number: int):
     crop = _crop_path(region, context)
     box = region_field(region, "bbox") or [0.0, 0.0, 0.0, 0.0]
+    vlm = _ask_chart_vlm(crop, caption)
+    history = [
+        {"engine": "geometry", "confidence": 0.2, "note": "caption without readable bars"},
+        {
+            "engine": "vlm",
+            "confidence": float(vlm.get("confidence") or 0.0),
+            "note": vlm.get("note") or "chart",
+            "task": "chart",
+        },
+    ]
+    flags = ["vlm_unavailable"] if "vlm_unavailable" in vlm.get("flags", []) else []
+    series = _vlm_series(vlm.get("json"))
+    if series:
+        payload = dict(vlm["json"])
+        payload["series"] = series
+        payload.setdefault("chart_type", "bar")
+        payload.setdefault("title", caption or None)
+        payload.setdefault("x_axis", {"label": None, "ticks": [point["label"] for point in series[0]["points"]]})
+        payload.setdefault("y_axis", {"label": series[0].get("name"), "unit": None})
+        payload["agreement"] = None
+        payload["candidates"] = []
+        return make_block(
+            extractor="vlm",
+            bbox=[float(value) for value in box],
+            page_start=page_number if page_number >= 1 else 1,
+            extraction=float(vlm["confidence"]),
+            block_type="chart",
+            content=payload,
+            region_id=str(region_field(region, "id", "region")),
+            status="needs_review",
+            source_file=str(path),
+            history=history,
+        )
     return make_block(
         extractor="chart",
         bbox=[float(value) for value in box],
@@ -195,9 +228,47 @@ def _unreadable_figure(region, path, context, caption: str, page_number: int):
         content={"text": caption, "crop": crop},
         region_id=str(region_field(region, "id", "region")),
         status="needs_review",
+        flags=flags,
         source_file=str(path),
-        history=[{"engine": "geometry", "confidence": 0.2, "note": "caption without readable bars"}],
+        history=history,
     )
+
+
+def _ask_chart_vlm(crop_path, caption: str) -> dict:
+    if not crop_path:
+        return {"confidence": 0.0, "flags": ["vlm_unavailable"], "note": "vlm_unavailable", "json": None}
+    try:
+        from PIL import Image
+
+        from extractors.vlm import read_crop
+
+        with Image.open(crop_path) as image:
+            return read_crop(image.convert("RGB"), "chart", hint=caption or "")
+    except Exception as exc:
+        return {
+            "confidence": 0.0,
+            "flags": ["vlm_unavailable"],
+            "note": f"{type(exc).__name__}: {exc}",
+            "json": None,
+        }
+
+
+def _vlm_series(payload):
+    if not isinstance(payload, dict):
+        return None
+    series = payload.get("series")
+    if not isinstance(series, list) or not series or not isinstance(series[0], dict):
+        return None
+    points = series[0].get("points")
+    if not isinstance(points, list) or len(points) < 2:
+        return None
+    cleaned = []
+    for item in series:
+        if not isinstance(item, dict):
+            continue
+        item_points = item.get("points") if isinstance(item.get("points"), list) else []
+        cleaned.append({**item, "points": item_points, "method": "vlm"})
+    return cleaned or None
 
 
 def _crop_path(region, context):

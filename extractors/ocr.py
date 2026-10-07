@@ -71,20 +71,30 @@ class OcrExtractor(Extractor):
                 )
             ]
         if not lines:
-            return [
-                failed_block(
-                    region,
-                    error_code="OCR_FAILED",
-                    message=f"No text recognized. crop={crop_path}",
-                    extractor=self.name,
-                )
-            ]
+            return [_empty_or_vlm(region, context, crop, crop_path)]
 
         extraction = _weighted_confidence(lines)
-        flags = ["ocr_low_conf"] if extraction < _LOW_CONFIDENCE else []
         text = " ".join(line["text"] for line in lines)
         boxes = [line["bbox"] for line in lines]
         page_number = int(region_field(region, "page", 1) or 1)
+        flags = []
+        status = "accepted"
+        history = [
+            {
+                "engine": self.name,
+                "confidence": extraction,
+                "note": "ocr",
+                "crop": str(crop_path),
+            }
+        ]
+        if extraction < _LOW_CONFIDENCE:
+            flags.append("ocr_low_conf")
+            vlm = _read_vlm(crop, "ocr")
+            history.append(_vlm_entry(vlm))
+            if "vlm_unavailable" in vlm.get("flags", []):
+                flags.append("vlm_unavailable")
+            elif vlm.get("text") and _different(text, vlm["text"]):
+                status = "needs_review"
         return [
             make_block(
                 extractor=self.name,
@@ -94,18 +104,83 @@ class OcrExtractor(Extractor):
                 block_type="paragraph",
                 content={"text": text, "lines": lines},
                 region_id=str(region_field(region, "id", "region")),
+                status=status,
                 flags=flags,
                 source_file=str(context.get("file_path") or ""),
-                history=[
-                    {
-                        "engine": self.name,
-                        "confidence": extraction,
-                        "note": "ocr",
-                        "crop": str(crop_path),
-                    }
-                ],
+                history=history,
             )
         ]
+
+
+def _empty_or_vlm(region, context, crop, crop_path):
+    vlm = _read_vlm(crop, "ocr")
+    page_number = int(region_field(region, "page", 1) or 1)
+    if vlm.get("text") and "vlm_unavailable" not in vlm.get("flags", []):
+        box = region_field(region, "bbox") or [0.0, 0.0, 0.0, 0.0]
+        return make_block(
+            extractor="vlm",
+            bbox=[float(value) for value in box],
+            page_start=page_number if page_number >= 1 else 1,
+            extraction=float(vlm["confidence"]),
+            block_type="paragraph",
+            content={"text": vlm["text"], "lines": []},
+            region_id=str(region_field(region, "id", "region")),
+            source_file=str(context.get("file_path") or ""),
+            history=[
+                {
+                    "engine": "paddleocr",
+                    "confidence": 0.0,
+                    "note": f"No text recognized. crop={crop_path}",
+                    "error_code": "OCR_FAILED",
+                    "crop": str(crop_path),
+                },
+                _vlm_entry(vlm),
+            ],
+        )
+    block = failed_block(
+        region,
+        error_code="OCR_FAILED",
+        message=f"No text recognized. crop={crop_path}",
+        extractor="paddleocr",
+    )
+    block.history.append(_vlm_entry(vlm))
+    if "vlm_unavailable" in vlm.get("flags", []):
+        block.flags.append("vlm_unavailable")
+    return block
+
+
+def _read_vlm(crop, task: str, hint: str = "") -> dict:
+    from extractors.vlm import read_crop
+
+    try:
+        return read_crop(crop, task, hint)
+    except Exception as exc:
+        return {
+            "text": "",
+            "confidence": 0.0,
+            "task": task,
+            "flags": [],
+            "note": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def _vlm_entry(vlm: dict) -> dict:
+    return {
+        "engine": "vlm",
+        "confidence": float(vlm.get("confidence") or 0.0),
+        "note": vlm.get("note") or vlm.get("text") or "vlm_unavailable",
+        "task": vlm.get("task", "ocr"),
+    }
+
+
+def _different(left: str, right: str) -> bool:
+    from difflib import SequenceMatcher
+
+    a = " ".join(left.lower().split())
+    b = " ".join(right.lower().split())
+    if not a or not b:
+        return False
+    return SequenceMatcher(None, a, b).ratio() < 0.8
 
 
 def _engine():
