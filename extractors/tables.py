@@ -290,7 +290,7 @@ def _block(region, context, item) -> object:
 
 def _public_cell(cell: dict) -> dict:
     text = cell["text"]
-    return {
+    public = {
         "text": text,
         "value": _number(text),
         "unit": None,
@@ -301,6 +301,11 @@ def _public_cell(cell: dict) -> dict:
         "confidence": float(cell["confidence"]),
         "repaired": False,
     }
+    if cell.get("formula"):
+        public["formula"] = cell["formula"]
+    if cell.get("number_format"):
+        public["number_format"] = cell["number_format"]
+    return public
 
 
 def _header_count(grid: list[list[dict]]) -> int:

@@ -4,6 +4,7 @@ from typing import Any
 
 from extractors.schema_ref import load_schema
 
+_KEEP_PAGE = object()
 _schema = load_schema()
 Block = _schema.Block
 ConfidenceInfo = _schema.ConfidenceInfo
@@ -70,12 +71,14 @@ def make_block(
     sheet: str | None = None,
     cell_range: str | None = None,
     slide: int | None = None,
+    source_page=_KEEP_PAGE,
 ) -> Block:
     """Build one Block. P2 and P4 overwrite order, risk, and the final score."""
     box = [float(value) for value in bbox]
     if len(box) != 4:
         raise ValueError("bbox must have four numbers")
     identity = block_id or f"blk_{region_id or 'region'}_{index}"
+    page_value = page_start if source_page is _KEEP_PAGE else source_page
     return Block(
         id=identity,
         type=block_type,
@@ -83,7 +86,7 @@ def make_block(
         page_start=page_start,
         page_end=page_end,
         bbox=box,
-        bbox_by_page={str(page_start): box},
+        bbox_by_page={} if page_value is None else {str(page_start): box},
         reading_order=0,
         order_confidence=0.0,
         region=region_id,
@@ -100,7 +103,7 @@ def make_block(
         history=list(history or []),
         source=SourceInfo(
             file=source_file,
-            page=page_start,
+            page=page_value,
             bbox=box,
             sheet=sheet,
             cell_range=cell_range,

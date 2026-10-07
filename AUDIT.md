@@ -109,3 +109,17 @@ Next is Step 5, tables on `table.pdf`.
 Check: `pytest tests/test_tables.py tests/test_extractors.py` — 16 passed.
 
 Next is Step 6, Office files.
+
+---
+
+## 2026-10-08 — Step 6 complete: Office files
+
+- Added `extractors/office.py`. P1 can call `extract_document(path)` for a whole file, or `extract(region, context)` with `route="office"`.
+- XLSX uses openpyxl. `sample.xlsx` returns one table block for sheet `Financials`, range including `B2`, cell text `128.5`, value `128.5`. There is no page. Provenance is `sheet` plus `cell_range`. Formulas and number formats are kept when a cell has them. Merged cells become spans.
+- DOCX uses python-docx. The sample heading is `Annual Financial Report 2025` at level 1, plus the FY2025 paragraph. No page bbox, because Word does not have one until a PDF conversion.
+- PPTX uses python-pptx. The slide title is `Revenue Growth`. The chart series is the embedded data, method `pptx_native`, including the point `128.5`. Agreement is left unset because a second chart path has not run. Shape boxes are in slide points.
+- No vision model is used.
+
+Check: `pytest tests/test_office.py tests/test_tables.py tests/test_extractors.py` — 20 passed.
+
+Next is Step 7, equations on `equation.pdf`.

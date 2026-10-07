@@ -3,10 +3,12 @@
     extract(region, context) -> list[Block]
 
 Routes that return blocks today:
-    skip, native_text, ocr, docling_table, paddle_table
+    skip, native_text, ocr, docling_table, paddle_table, office
+
+P1 can also call extract_document(path) for a whole DOCX, XLSX, or PPTX.
 
 Routes reserved for later steps. They fail clearly until an extractor is registered:
-    chart, formula, office
+    chart, formula
 """
 
 from extractors.base import Extractor
@@ -89,9 +91,13 @@ def _first_handler(region) -> Extractor | None:
 
 from extractors.native_text import NativeTextExtractor
 from extractors.ocr import OcrExtractor
+from extractors.office import OfficeExtractor, extract_document
 from extractors.tables import TableExtractor
 
 register("native_text", NativeTextExtractor())
 register("ocr", OcrExtractor())
 register("docling_table", TableExtractor(scanned=False))
 register("paddle_table", TableExtractor(scanned=True))
+register("office", OfficeExtractor())
+
+__all__ = ["extract", "extract_document", "register", "unregister"]
