@@ -1,5 +1,10 @@
 from typing import Any
 
+from routing.structure import (
+    covered_by_structure,
+    formula_or_furniture,
+    structural_regions,
+)
 from .layout_checks import is_full_width, valid_bbox
 from .route_models import PageProfile, Region
 
@@ -62,7 +67,7 @@ def detect_native_regions(
     page,
     profile: PageProfile
 ) -> list[Region]:
-    regions = []
+    regions = structural_regions(page, profile)
 
     try:
         blocks = page.get_text("blocks")
@@ -92,36 +97,89 @@ def detect_native_regions(
         if not valid_bbox(bbox):
             continue
 
-        region_type = _classify_text_region(text, bbox)
+        if covered_by_structure(bbox, regions):
+            continue
 
-        full_width = is_full_width(
-            bbox,
-            profile.width
-        )
-
-        confidence = _region_confidence(
-            text,
-            bbox,
-            profile.width,
-            profile.height
-        )
-
-        regions.append(
-            Region(
-                region_id=f"p{profile.page_number}_r{region_number}",
-                page_number=profile.page_number,
-                region_type=region_type,
-                bbox=bbox,
-                confidence=confidence,
-                source="pymupdf",
-                text=text,
-                is_full_width=full_width,
+        pieces = _split_on_column_gap(page, bbox, profile.width) or [(text, bbox)]
+        for piece_text, piece_bbox in pieces:
+            formula_type, is_header, is_footer = formula_or_furniture(
+                piece_text,
+                piece_bbox,
+                profile.height,
             )
-        )
-
-        region_number += 1
+            region_type = formula_type or _classify_text_region(piece_text, piece_bbox)
+            regions.append(
+                Region(
+                    region_id=f"p{profile.page_number}_r{region_number}",
+                    page_number=profile.page_number,
+                    region_type=region_type,
+                    bbox=piece_bbox,
+                    confidence=_region_confidence(
+                        piece_text,
+                        piece_bbox,
+                        profile.width,
+                        profile.height,
+                    ),
+                    source="pymupdf",
+                    text=piece_text,
+                    is_full_width=is_full_width(piece_bbox, profile.width),
+                    is_header=is_header,
+                    is_footer=is_footer,
+                )
+            )
+            region_number += 1
 
     return regions
+
+
+def _split_on_column_gap(page, bbox: list[float], page_width: float) -> list[tuple[str, list[float]]] | None:
+    """Split one PDF block when a gap shows the line belongs to two columns."""
+    words = []
+    for word in page.get_text("words"):
+        center_x = (float(word[0]) + float(word[2])) / 2
+        center_y = (float(word[1]) + float(word[3])) / 2
+        if bbox[0] - 1 <= center_x <= bbox[2] + 1 and bbox[1] - 1 <= center_y <= bbox[3] + 1:
+            words.append(word)
+    if len(words) < 2:
+        return None
+
+    gap_limit = max(36.0, page_width * 0.06)
+    lines: dict[int, list] = {}
+    for word in words:
+        lines.setdefault(int(word[6]), []).append(word)
+
+    pieces = []
+    for line_no in sorted(lines, key=lambda key: min(float(word[1]) for word in lines[key])):
+        line_words = sorted(lines[line_no], key=lambda word: float(word[0]))
+        groups = [[line_words[0]]]
+        for word in line_words[1:]:
+            gap = float(word[0]) - float(groups[-1][-1][2])
+            if gap > gap_limit:
+                groups.append([word])
+            else:
+                groups[-1].append(word)
+        pieces.extend(groups)
+
+    if len(pieces) <= 1:
+        return None
+
+    result = []
+    for group in pieces:
+        text = _clean_text(" ".join(str(word[4]) for word in group))
+        if not text:
+            continue
+        result.append(
+            (
+                text,
+                [
+                    min(float(word[0]) for word in group),
+                    min(float(word[1]) for word in group),
+                    max(float(word[2]) for word in group),
+                    max(float(word[3]) for word in group),
+                ],
+            )
+        )
+    return result or None
 
 
 def _normalize_layout_box(
@@ -247,21 +305,39 @@ def detect_layout_regions(
 
 def merge_region_sources(
     native_regions: list[Region],
-    layout_regions: list[Region]
+    layout_regions: list[Region],
+    page_width: float = 0.0,
 ) -> list[Region]:
 
     if not layout_regions:
-        return native_regions
+        return _drop_duplicate_regions(native_regions, page_width)
 
     if not native_regions:
-        return layout_regions
+        return _drop_duplicate_regions(layout_regions, page_width)
 
     merged = list(layout_regions)
+    structural = {"table", "chart", "figure", "formula", "equation"}
 
     for native in native_regions:
         matched = False
 
         for layout in layout_regions:
+            layout_width = layout.bbox[2] - layout.bbox[0]
+            if (
+                layout.region_type not in structural
+                and page_width > 0
+                and layout_width > page_width * 0.55
+            ):
+                continue
+
+            native_mid_x = (native.bbox[0] + native.bbox[2]) / 2
+            native_mid_y = (native.bbox[1] + native.bbox[3]) / 2
+            if not (
+                layout.bbox[0] <= native_mid_x <= layout.bbox[2]
+                and layout.bbox[1] <= native_mid_y <= layout.bbox[3]
+            ):
+                continue
+
             horizontal = min(
                 native.bbox[2],
                 layout.bbox[2]
@@ -307,7 +383,105 @@ def merge_region_sources(
         if not matched:
             merged.append(native)
 
-    return merged
+    width = page_width or max((region.bbox[2] for region in merged if region.bbox), default=0.0)
+    return _drop_duplicate_regions(merged, width)
+
+
+def _region_text(region: Region) -> str:
+    return " ".join(region.text.split())
+
+
+def _box_area(bbox: list[float]) -> float:
+    return max(0.0, bbox[2] - bbox[0]) * max(0.0, bbox[3] - bbox[1])
+
+
+def _overlap_area(left: list[float], right: list[float]) -> float:
+    width = min(left[2], right[2]) - max(left[0], right[0])
+    height = min(left[3], right[3]) - max(left[1], right[1])
+    if width <= 1 or height <= 1:
+        return 0.0
+    return width * height
+
+
+def _crosses_column_gap(outer: Region, regions: list[Region], drop: set[int]) -> bool:
+    """A short wide box is a joined column heading when two pieces sit inside it."""
+    height = outer.bbox[3] - outer.bbox[1]
+    if height >= 36:
+        return False
+    pieces = []
+    for index, region in enumerate(regions):
+        if region is outer or index in drop:
+            continue
+        mid_x = (region.bbox[0] + region.bbox[2]) / 2
+        mid_y = (region.bbox[1] + region.bbox[3]) / 2
+        if outer.bbox[0] <= mid_x <= outer.bbox[2] and outer.bbox[1] <= mid_y <= outer.bbox[3]:
+            pieces.append(region)
+    if len(pieces) < 2:
+        return False
+    pieces.sort(key=lambda region: region.bbox[0])
+    return any(right.bbox[0] - left.bbox[2] > 36 for left, right in zip(pieces, pieces[1:]))
+
+
+def _drop_duplicate_regions(regions: list[Region], page_width: float) -> list[Region]:
+    """Keep one box when layout and native detection describe the same lines.
+
+    A line that sits inside a column-width box is dropped, because extraction
+    reads every word inside the box. A box wider than the column is dropped
+    when smaller regions already cover it, so the two columns stay separate.
+    A table, chart, or formula box is kept and the text inside it is dropped.
+    """
+    structural = {"table", "chart", "figure", "formula", "equation"}
+    drop: set[int] = set()
+    for index, region in enumerate(regions):
+        text = _region_text(region)
+        if not text:
+            continue
+        for earlier in range(index):
+            if earlier in drop:
+                continue
+            other = regions[earlier]
+            same_line = min(region.bbox[3], other.bbox[3]) - max(region.bbox[1], other.bbox[1]) > 2
+            if _region_text(other) == text and same_line:
+                drop.add(index)
+                break
+
+    for index, inner in enumerate(regions):
+        if index in drop:
+            continue
+        inner_area = _box_area(inner.bbox)
+        if inner_area <= 0:
+            continue
+        for outer_index, outer in enumerate(regions):
+            if index == outer_index or outer_index in drop:
+                continue
+            outer_area = _box_area(outer.bbox)
+            if outer_area <= inner_area * 1.15:
+                continue
+            if _overlap_area(inner.bbox, outer.bbox) / inner_area < 0.8:
+                continue
+            if outer.region_type in structural:
+                drop.add(index)
+                break
+            if inner.region_type in structural:
+                drop.add(outer_index)
+                continue
+            outer_width = outer.bbox[2] - outer.bbox[0]
+            outer_height = outer.bbox[3] - outer.bbox[1]
+            inner_mid = (inner.bbox[1] + inner.bbox[3]) / 2
+            tall_and_wide = (
+                page_width > 0
+                and outer_width > page_width * 0.55
+                and outer_height >= 36
+            )
+            if tall_and_wide or _crosses_column_gap(outer, regions, drop):
+                drop.add(outer_index)
+                continue
+            if outer_height < 36 and not (outer.bbox[1] <= inner_mid <= outer.bbox[3]):
+                continue
+            drop.add(index)
+            break
+
+    return [region for index, region in enumerate(regions) if index not in drop]
 
 
 def detect_regions(
@@ -328,7 +502,8 @@ def detect_regions(
 
     regions = merge_region_sources(
         native_regions,
-        layout_regions
+        layout_regions,
+        profile.width,
     )
 
     return regions

@@ -5,9 +5,12 @@ words. A digital table with no lines falls back to Docling. A scanned table
 uses PaddleOCR table recognition. Cross-page merging belongs to P2.
 """
 
+import logging
 import os
 from html.parser import HTMLParser
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 import pymupdf
 
@@ -15,6 +18,8 @@ from extractors.base import Extractor
 from extractors.utils import crop_region, failed_block, make_block, region_field
 
 _TABLE_ENGINE = None
+_DOCLING_CONVERTER = None
+_DOCLING_PAGES = {}
 
 
 class TableExtractor(Extractor):
@@ -128,22 +133,40 @@ def _vector_cells(page, region_box) -> list[dict]:
     return list(unique.values())
 
 
-def _docling_cells(path, page_number, region_box, page) -> list[dict]:
-    from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
-    from docling.document_converter import DocumentConverter, PdfFormatOption
+def _docling_document(path, page_number):
+    """Convert one page once. A second table on that page reuses the result."""
+    global _DOCLING_CONVERTER
+    key = (str(Path(path).resolve()), int(page_number))
+    cached = _DOCLING_PAGES.get(key)
+    if cached is not None:
+        return cached
+    if _DOCLING_CONVERTER is None:
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
 
-    options = PdfPipelineOptions()
-    options.do_ocr = False
-    converter = DocumentConverter(
-        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
+        options = PdfPipelineOptions()
+        options.do_ocr = False
+        _DOCLING_CONVERTER = DocumentConverter(
+            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)}
+        )
+    logger.warning("Docling table page %s", page_number)
+    result = _DOCLING_CONVERTER.convert(
+        str(path),
+        page_range=(int(page_number), int(page_number)),
     )
-    result = converter.convert(str(path))
+    _DOCLING_PAGES[key] = result.document
+    return result.document
+
+
+def _docling_cells(path, page_number, region_box, page) -> list[dict]:
+    document = _docling_document(path, page_number)
     words = page.get_text("words")
     cells = []
-    for table in result.document.tables:
+    for table in document.tables:
         provenance = table.prov[0] if table.prov else None
-        if provenance is not None and provenance.page_no != page_number:
+        page_no = getattr(provenance, "page_no", None) if provenance is not None else None
+        if page_no not in (None, 1, page_number):
             continue
         for cell in table.data.table_cells:
             bbox = _docling_bbox(cell.bbox, page.rect.height) if cell.bbox is not None else None

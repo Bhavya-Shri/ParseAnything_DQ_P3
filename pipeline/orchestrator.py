@@ -14,6 +14,7 @@ from routing.pp_structure_adapter import (
 )
 from routing.column_detector import detect_layout_sections
 from routing.reading_order import reconstruct_reading_order
+from routing.route_models import Region
 from routing.router import route_regions
 
 import logging
@@ -90,7 +91,7 @@ def _get_layout_result(model, page):
     return None
 
 
-def _run_p2(ingestion_data):
+def _run_p2(ingestion_data, file_format: str = "pdf"):
     """
     Run the complete P2 routing pipeline on ingested PDF pages.
 
@@ -130,6 +131,9 @@ def _run_p2(ingestion_data):
             # -------------------------------------------------
 
             profile = profile_page(page)
+            if file_format in {"png", "jpg", "jpeg"}:
+                profile.is_scanned = True
+                profile.metadata["structure_resolved"] = False
 
             logger.info(
                 f"P2 page {profile.page_number}: "
@@ -152,7 +156,7 @@ def _run_p2(ingestion_data):
 
             layout_regions = []
 
-            if should_use_layout_model(profile):
+            if should_use_layout_model(profile) and not profile.metadata.get("structure_resolved"):
 
                 if layout_model is None:
                     layout_model = _create_layout_model()
@@ -188,8 +192,22 @@ def _run_p2(ingestion_data):
 
             regions = merge_region_sources(
                 native_regions,
-                layout_regions
+                layout_regions,
+                profile.width,
             )
+
+            if not regions:
+                regions = [
+                    Region(
+                        region_id=f"p{profile.page_number}_page",
+                        page_number=profile.page_number,
+                        region_type="text",
+                        bbox=[0.0, 0.0, profile.width, profile.height],
+                        confidence=0.5,
+                        source="page",
+                        is_full_width=True,
+                    )
+                ]
 
             if not regions:
                 logger.info(
@@ -292,6 +310,46 @@ def _run_p2(ingestion_data):
 
 
 def parse_document(
+    file_path: str,
+    options: dict | None = None
+) -> DocumentResult:
+    """Run the pipeline. Pass timeout_seconds to kill a hung parse from another process."""
+    options = dict(options or {})
+    timeout = options.pop("timeout_seconds", None)
+    if not timeout:
+        return _parse_document_body(file_path, options)
+    from pipeline.worker import run_with_timeout
+
+    try:
+        return run_with_timeout(
+            _parse_document_body,
+            int(timeout),
+            file_path,
+            options,
+        )
+    except TimeoutError as exc:
+        return DocumentResult(
+            document_id="doc_timeout",
+            filename=file_path,
+            format="unknown",
+            page_count=0,
+            status="failed",
+            blocks=[],
+            errors=[
+                {
+                    "status": "failed",
+                    "error_code": "TIMEOUT",
+                    "message": str(exc),
+                    "recoverable": False,
+                    "stage": "pipeline",
+                    "page": None,
+                    "trace_id": "timeout",
+                }
+            ],
+        )
+
+
+def _parse_document_body(
     file_path: str,
     options: dict | None = None
 ) -> DocumentResult:
@@ -492,7 +550,8 @@ def parse_document(
             p2_regions,
             p2_routes
         ) = _run_p2(
-            ingestion_data
+            ingestion_data,
+            preflight_data["format"],
         )
 
         logger.info(

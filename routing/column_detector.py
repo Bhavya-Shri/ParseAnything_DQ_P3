@@ -51,6 +51,9 @@ def _usable_regions(
         if bbox_width(region.bbox) <= 0:
             continue
 
+        if bbox_width(region.bbox) > page_width * 0.55:
+            continue
+
         result.append(region)
 
     return result

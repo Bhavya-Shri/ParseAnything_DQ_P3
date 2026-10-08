@@ -216,3 +216,80 @@ No new extractors after this.
 - `simple.pdf`, `sample.docx`, and `sample.xlsx` pass through `parse_document`.
 
 Check: the wired pipeline plus the extractor, schema, and office tests passed. One collection test failed because Docling was imported at startup. That import is now lazy, and `pytest tests/test_extractors.py tests/test_schema.py tests/test_pipeline.py tests/test_failures.py tests/test_office.py` passed 54.
+
+---
+
+## 2026-10-08 — Block fields filled from the region and the assembler
+
+- `page_end` is now the same page as `page_start` on every new block. A cross-page table merge can still move it later.
+- `parse_document` copies `order_confidence` from the region. Office blocks get `1.0` because their order is the file order.
+- Layout checks are stored on `links.layout`: bbox warnings, header, footer, column, scan flag, and the route. Office uses `source="office"`.
+- The table-merge result is stored on `links.table_merge`. It used to be dropped, because `Block` has no metadata field. `merged` stays false until a continuation is actually merged.
+- `confidence.structure`, `confidence.source_quality`, and the final trust score are still P4's. They are not filled here.
+
+Check: `pytest tests/test_extractors.py::test_make_block_sets_required_fields tests/test_p3_pipeline.py tests/test_office.py` — 8 passed.
+
+---
+
+## 2026-10-08 — Pipeline finished up to P4
+
+- P2 now finds a ruled table, a bar chart, and a formula line on the sample PDFs and routes them. Header and footer text in the page margin is flagged and ordered outside the body.
+- A table that ends near the bottom of one page and continues at the top of the next is merged. Cell and chart units such as crore are filled when the page text says so.
+- Image files open through PyMuPDF and are read as scans. `parse_document(..., {"timeout_seconds": N})` and `cli.py --timeout` use the killable worker.
+- A figure route returns a `needs_review` block instead of being dropped. Every assembled document sets `metrics["ready_for"] = "p4"`. Trust scoring is not called.
+- Still not run: the live scanned-table model, Docling's no-grid table fallback, a live VLM call, and line charts. `confidence.structure` and `confidence.source_quality` stay at 0 for P4.
+
+Check: `pytest tests/test_handoff.py` — table, chart, equation, scanned PDF, PNG, timeout, units, and furniture passed. The extractor, schema, pipeline, office, and simple-PDF tests then passed 58. Docker is not installed here, so `Dockerfile` was not built.
+
+---
+
+## 2026-10-08 — Sample set parsed
+
+Removed `phone_scan_table.png` (a smaller copy of `02_phone_scan_table.png`) and `04_cross_page_table.pdf` (no ruled lines; replaced by `04_ruled_cross_page_table.pdf`).
+
+`parse_document` on the remaining files:
+
+| File | Result |
+|---|---|
+| `11_empty.pdf` | `failed`, `EMPTY_DOCUMENT` |
+| `11_notes.txt` | `failed`, `UNSUPPORTED_FORMAT` |
+| `04_corrupt_pdf.pdf` | `complete`, 0 pages, 0 blocks. Preflight accepts it |
+| `simple.pdf` | `complete`. Heading and FY2025 paragraph |
+| `table.pdf` | `complete`. One table, cells include `128.5` |
+| `03_borderless_table.pdf` | `complete`. Docling returned one table. Cells include `128.5` and `18.4%` |
+| `03_two_column.pdf` | `complete`. 15 blocks. Reading order is the title, the subtitle, the left column from top to bottom, the right column from top to bottom, then the footer |
+| `04_ruled_cross_page_table.pdf` | `complete`. The two grids were merged into one table. Rows run from Alpha `128.5` through Kappa `34.5`, and `page_end` is 2 |
+| `chart.pdf` | `complete`. Chart points `92.4`, `110.7`, `128.5`, plus a figure marked `needs_review` |
+| `equation.pdf` | `complete`. Equation `E = mc^{2}`, status `needs_review` |
+| `sample.docx` | `complete`. Heading and FY2025 paragraph |
+| `sample.xlsx` | `complete`. Cell `128.5` |
+| `sample.pptx` | `complete`. Title and chart points including `128.5` |
+| `scanned.pdf` | `complete`. One OCR paragraph |
+| `02_phone_scan_table.png` | `partial`. Title OCR succeeded. The table model ran and returned `TABLE_FAILED` |
+| `fin_rep.pdf` | `partial`, 216 pages, 4689 blocks, 198 tables, `ready_for` `p4`. 1674 seconds. Chart regions that could not be read are `CHART_FAILED` |
+
+The per-file JSON is in `outputs/sample_parse_report.json`.
+
+## 2026-10-08 — Reading order and the P1 to P3 sample path
+
+The 216-page parse was stopped because Docling was reconverting the whole file for every borderless table. `extractors/tables.py` now keeps one converter and one result per page. The rerun finished in 1674 seconds: `partial`, 216 pages, 4689 blocks, 198 tables, `ready_for` `p4`. Each Docling page took about 5 to 20 seconds.
+
+`03_two_column.pdf` goes through `parse_document`: P1 opens the PDF, P2 splits the same-line column headings, orders the left column before the right column, and P3 reads those regions. The footer is last. A layout box that repeats a line is dropped.
+
+`04_ruled_cross_page_table.pdf` merges the page-1 and page-2 grids into one table dict. The body rows include Alpha and Zeta.
+
+Check: `pytest tests/test_handoff.py::test_two_column_reading_order_is_left_then_right tests/test_handoff.py::test_wide_heading_line_is_kept tests/test_handoff.py::test_column_heading_below_a_banner_is_kept tests/test_handoff.py::test_heading_is_not_absorbed_by_the_column_below_it tests/test_handoff.py::test_tall_page_box_does_not_swallow_columns tests/test_handoff.py::test_nested_column_box_does_not_keep_both_copies tests/test_handoff.py::test_bottom_and_top_tables_merge` — 7 passed. The full `parse_document` order on `03_two_column.pdf` matches that list.
+
+## 2026-10-08 — P4 confidence and risk on the assembled blocks
+
+`parse_document` now calls `apply_trust` after P2 assembly. A structure or source-quality value left at `0.0` is measured from `order_confidence`, `links.layout`, the block shape, the extractor, and flags. `confidence.final` is the weighted sum. `risk` is set from the block type and the text. Extracted content, reading order, extraction confidence, status, and flags are left as P1–P3 wrote them. `trust_report` stores the block count, mean final score, and risk counts.
+
+Check: `pytest tests/test_p4.py tests/test_p3_pipeline.py tests/test_office.py tests/test_extractors.py::test_make_block_sets_required_fields` — 27 passed.
+
+## 2026-10-08 — Reader
+
+`app/server.py` serves the page at `http://127.0.0.1:8765` and calls `parse_document`. Document shows the blocks in reading order. Evidence is a separate tab: file, then page, then each block with its extractor, final score, and box. The type is Newsreader and Hanken Grotesk on warm paper. The lime from the Glyphs reference is not used.
+
+Check: opened `sample.docx` in the browser. The heading and the FY2025 paragraph came back with confidence `1.00`. The paragraph is `HIGH`. Selecting it on the Evidence tab showed extractor `python-docx`, status `accepted`, and the four scores.
+
+The reader now returns the Markdown from `output/markdown_writer.py` and the JSON from `output/json_writer.py`. After a file is read, both sit on the first result screen, each with a copy button. The sample-file list is not on the page. A visitor drops a PDF, Word file, spreadsheet, deck, or image.

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ParseAnything</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="bar">
+    <a class="mark" href="/" aria-label="ParseAnything, start">ParseAnything</a>
+    <nav id="tabs" class="tabs" aria-label="Results" hidden>
+      <button type="button" class="tab is-on" data-view="exports">Markdown and JSON</button>
+      <button type="button" class="tab" data-view="reading">Reading</button>
+      <button type="button" class="tab" data-view="regions">Regions</button>
+      <button type="button" class="tab" data-view="precedence">Precedence</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="landing">
+      <p class="kicker">Document parser</p>
+      <h1>Read a file. Keep the evidence.</h1>
+      <p class="lede">Drop in a PDF, Word document, spreadsheet, slide deck, or a scan. You get the text in reading order, the regions on the page, Markdown, JSON, and the order in which each block precedes the next.</p>
+
+      <label id="drop" class="drop">
+        <input id="file" type="file" accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg">
+        <span class="drop-title" id="drop-title">Drop a document here, or choose a file</span>
+        <span class="drop-note">PDF · DOCX · XLSX · PPTX · PNG · JPG</span>
+      </label>
+      <p class="sample-line">Presenting without a file? <button type="button" id="sample">Open the sample report</button></p>
+      <p id="status" class="status" role="status" hidden></p>
+
+      <ol class="returns">
+        <li><strong>Reading</strong> The page, in the order it was written.</li>
+        <li><strong>Regions</strong> Each block, its page, and its box.</li>
+        <li><strong>Markdown</strong> A copy you can paste elsewhere.</li>
+        <li><strong>JSON</strong> The full result, including confidence and risk.</li>
+        <li><strong>Precedence</strong> Which block comes before which, and where it was read from.</li>
+      </ol>
+    </section>
+
+    <section id="work" hidden>
+      <header class="result-head">
+        <p id="kicker" class="kicker"></p>
+        <h1 id="title"></h1>
+        <p id="colophon" class="colophon"></p>
+        <div id="errors" class="errors" hidden></div>
+      </header>
+
+      <section id="view-exports" class="pane is-on">
+        <div class="split">
+          <article id="markdown-panel">
+            <div class="pane-bar">
+              <p id="md-count">Markdown from the writer</p>
+              <button type="button" class="copy" data-copy="markdown">Copy Markdown</button>
+            </div>
+            <pre id="markdown" class="source"></pre>
+          </article>
+          <article id="json-panel">
+            <div class="pane-bar">
+              <p id="json-count">JSON from the writer</p>
+              <button type="button" class="copy" data-copy="json">Copy JSON</button>
+            </div>
+            <pre id="json" class="source"></pre>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-reading" class="pane" hidden>
+        <div class="pane-bar">
+          <p>The document, in reading order.</p>
+          <button type="button" class="copy" data-copy="reading">Copy text</button>
+        </div>
+        <div id="blocks" class="blocks"></div>
+      </section>
+
+      <section id="view-regions" class="pane" hidden>
+        <div class="pane-bar">
+          <p>Where each block sits on the page.</p>
+          <button type="button" class="copy" data-copy="regions">Copy regions</button>
+        </div>
+        <div id="regions" class="regions"></div>
+      </section>
+
+      <section id="view-precedence" class="pane" hidden>
+        <div class="pane-bar">
+          <p>Each block precedes the one beneath it.</p>
+          <button type="button" class="copy" data-copy="precedence">Copy order</button>
+        </div>
+        <div class="evidence">
+          <div id="sheet" class="sheet"></div>
+          <aside id="detail" class="detail">
+            <p class="detail-empty">Select a block to see its source.</p>
+          </aside>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

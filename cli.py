@@ -11,6 +11,7 @@ def main():
     parser.add_argument("--out-json", help="Path to output JSON result")
     parser.add_argument("--out-md", help="Path to output Markdown result")
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--timeout", type=int, help="Kill the parse after this many seconds")
     
     args = parser.parse_args()
 
@@ -21,7 +22,8 @@ def main():
     print(f"Processing {args.file_path}...")
     
     # Run the pipeline
-    doc_result = parse_document(args.file_path)
+    options = {"timeout_seconds": args.timeout} if args.timeout else None
+    doc_result = parse_document(args.file_path, options)
     
     if args.out_json:
         write_json(doc_result, args.out_json)

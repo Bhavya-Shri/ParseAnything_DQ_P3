@@ -1,6 +1,6 @@
 # Integrating P3 extraction
 
-The call is now inside this repo. `parse_document(path)` runs P2 on a PDF, maps each region onto a P3 route, calls `extract`, then runs P2 assembly. A DOCX, XLSX, or PPTX skips layout and calls `extract_document(path)`. P2 route names `native`, `table`, `equation`, `figure`, and `vlm` are translated before they reach `extract`.
+The call is now inside this repo. `parse_document(path)` runs P2 on a PDF, maps each region onto a P3 route, calls `extract`, then runs P2 assembly. A DOCX, XLSX, or PPTX skips layout and calls `extract_document(path)`. P2 route names `native`, `table`, `equation`, and `vlm` are translated before they reach `extract`. `figure` stays `figure` and returns a review block. `skip` still returns nothing.
 
 
 
@@ -76,10 +76,13 @@ If `route` is missing, P3 tries `can_handle`. That fallback is narrow. P2 should
 | `type` | P3 | `heading`, `paragraph`, `list`, `table`, `figure`, `chart`, `equation` |
 | `content` | P3 | See the shapes below. |
 | `page_start` | P3 | Region page. `0` for XLSX and DOCX. Slide number for PPTX. |
+| `page_end` | P3, then P2 | Same as `page_start` on a single page. P2 changes it when a table is merged onto a later page. |
 | `bbox` | P3 | Four numbers, top-left origin. `[0,0,0,0]` when there is no page. |
-| `bbox_by_page` | P3 | `{ "<page>": bbox }` when a page exists, otherwise `{}`. |
-| `reading_order` | P2 | Left at `0`. |
-| `order_confidence` | P2 | Left at `0.0`. |
+| `bbox_by_page` | P3, then P2 | `{ "<page>": bbox }` when a page exists, otherwise `{}`. P2 adds later pages on a merged table. |
+| `reading_order` | P2 | `extract()` leaves `0`. `parse_document` copies the region order. |
+| `order_confidence` | P2 | `extract()` leaves `0.0`. `parse_document` copies `region.metadata["order_confidence"]`. Office files get `1.0` because the file order is native. |
+| `links.layout` | P2, copied by the bridge | Header, footer, column, scan flag, route, and bbox warnings. Office uses `source="office"`. |
+| `links.table_merge` | P2 | `merged`, `merge_confidence`, `merge_reasons`, `table_continuation`. `merged` is false until a continuation is merged. |
 | `region` | P3 | The region id that produced the block. |
 | `extractor` | P3 | `pymupdf`, `paddleocr`, `paddleocr_table`, `docling`, `formula`, `chart`, `vlm`, `openpyxl`, `python-docx`, `python-pptx` |
 | `confidence.extraction` | P3 | Evidence score from 0 to 1. |
@@ -356,7 +359,7 @@ Rules:
 | Scanned table | `paddle_table` | `True` | `table` |
 | Display equation | `formula` | `False` or `True` | `equation` |
 | Bar chart, or a figure you are willing to fail honestly | `chart` | either | `chart` |
-| Logo, line, decoration | `skip` | either | `figure` |
+| Logo, line, decoration | `figure` or `skip` | either | `figure` |
 | Whole DOCX, XLSX, or PPTX | Do not emit page regions. Tell P1 to call `extract_document`. | — | — |
 
 More specific rules:
@@ -369,7 +372,7 @@ More specific rules:
 
 ### 3. After extraction, set order and units
 
-P3 returns blocks in the order of the regions you passed, and inside a region in its own local order. Overwrite `reading_order` with your page order. Set `order_confidence` from your sorter. Do not expect either field to arrive filled in.
+P3 returns blocks in the order of the regions you passed, and inside a region in its own local order. `extract()` still leaves `reading_order` at `0` and `order_confidence` at `0.0`. `parse_document` copies both from the region before assembly, and stores the layout checks on `links.layout`. A merged table's notes land on `links.table_merge` because `Block` has no metadata field.
 
 For tables and charts, read headers and nearby captions and set:
 

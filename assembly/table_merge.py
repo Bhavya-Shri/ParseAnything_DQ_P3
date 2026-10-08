@@ -155,6 +155,16 @@ def _has_continuation_signal(
     ):
         return True
 
+    previous_height = previous.get("page_height")
+    current_height = current.get("page_height")
+    previous_bbox = previous.get("bbox") or [0, 0, 0, 0]
+    current_bbox = current.get("bbox") or [0, 0, 0, 0]
+    if previous_height and current_height:
+        ends_low = previous_bbox[3] >= float(previous_height) * 0.75
+        starts_high = current_bbox[1] <= float(current_height) * 0.25
+        if ends_low and starts_high:
+            return True
+
     return False
 
 
@@ -249,6 +259,14 @@ def _can_merge(
     )
 
 
+def _merge_table_dict(previous, current):
+    merged = dict(previous)
+    merged["rows"] = list(previous.get("rows") or []) + list(current.get("rows") or [])
+    if "records" in previous or "records" in current:
+        merged["records"] = list(previous.get("records") or []) + list(current.get("records") or [])
+    return merged
+
+
 def _merge_content(
     previous,
     current,
@@ -258,6 +276,14 @@ def _merge_content(
 
     if current is None:
         return previous
+
+    if (
+        isinstance(previous, dict)
+        and isinstance(current, dict)
+        and "rows" in previous
+        and "rows" in current
+    ):
+        return _merge_table_dict(previous, current)
 
     if (
         isinstance(previous, list)

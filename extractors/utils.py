@@ -79,6 +79,8 @@ def make_block(
         raise ValueError("bbox must have four numbers")
     identity = block_id or f"blk_{region_id or 'region'}_{index}"
     page_value = page_start if source_page is _KEEP_PAGE else source_page
+    if page_end is None:
+        page_end = page_start
     return Block(
         id=identity,
         type=block_type,

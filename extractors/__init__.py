@@ -8,7 +8,7 @@ P1 imports extract from here. Office files can also use extract_document(path).
 P4 and P5 use read_crop and vlm_call_count for one hard crop.
 
 Routes that return blocks:
-    skip, native_text, ocr, docling_table, paddle_table, office, formula, chart
+    skip, native_text, ocr, docling_table, paddle_table, office, formula, chart, figure
 
 An unknown route returns one failed block. It does not return an empty success.
 
@@ -17,7 +17,7 @@ Not claimed:
     Docling's table fallback was not needed for table.pdf and was not run
     no live VLM call; a missing key returns vlm_unavailable
     line charts and charts without printed values are not read
-    pipeline/schema.py is absent, so blocks use the local stub
+    pipeline/schema.py is the live Block. The stub remains only as a fallback
 
 No new routes after this handoff.
 """
@@ -104,6 +104,7 @@ from extractors.native_text import NativeTextExtractor
 from extractors.ocr import OcrExtractor
 from extractors.charts import ChartExtractor
 from extractors.equations import EquationExtractor
+from extractors.figures import FigureExtractor
 from extractors.office import OfficeExtractor, extract_document
 from extractors.tables import TableExtractor
 from extractors.vlm import read_crop, vlm_call_count
@@ -115,5 +116,6 @@ register("paddle_table", TableExtractor(scanned=True))
 register("office", OfficeExtractor())
 register("formula", EquationExtractor())
 register("chart", ChartExtractor())
+register("figure", FigureExtractor())
 
 __all__ = ["extract", "extract_document", "read_crop", "register", "unregister", "vlm_call_count"]

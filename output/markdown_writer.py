@@ -1,8 +1,8 @@
 from pipeline.schema import DocumentResult
 
 
-def write_markdown(doc: DocumentResult, output_path: str):
-    """Write blocks in reading order. Content objects stay structured."""
+def render_markdown(doc: DocumentResult) -> str:
+    """Markdown in reading order. Same text write_markdown saves to disk."""
     lines = [f"# Document: {doc.filename}", ""]
     if doc.status == "failed":
         lines.append("**Status:** Failed")
@@ -33,8 +33,13 @@ def write_markdown(doc: DocumentResult, output_path: str):
         else:
             lines.append(f"{_text(block.content)}{marker}")
         lines.append("")
+    return "\n".join(lines)
+
+
+def write_markdown(doc: DocumentResult, output_path: str):
+    """Write blocks in reading order. Content objects stay structured."""
     with open(output_path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines))
+        handle.write(render_markdown(doc))
 
 
 def _text(content) -> str:

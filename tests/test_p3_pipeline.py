@@ -21,6 +21,10 @@ def test_simple_pdf_returns_the_heading():
     assert any("Annual Financial Report 2025" in text for text in _texts(doc))
     assert any("FY2025" in text for text in _texts(doc))
     assert all(block.extractor for block in doc.blocks)
+    assert all(block.page_end == block.page_start for block in doc.blocks)
+    assert all(block.order_confidence > 0 for block in doc.blocks)
+    assert all(block.links["layout"]["source"] == "region" for block in doc.blocks)
+    assert all(block.links["table_merge"]["merged"] is False for block in doc.blocks)
 
 
 def test_docx_uses_the_office_reader():
@@ -28,6 +32,9 @@ def test_docx_uses_the_office_reader():
     assert doc.status == "complete"
     assert any("Annual Financial Report 2025" in text for text in _texts(doc))
     assert any(block.extractor == "python-docx" for block in doc.blocks)
+    assert all(block.page_end == block.page_start for block in doc.blocks)
+    assert all(block.order_confidence == 1.0 for block in doc.blocks)
+    assert all(block.links["layout"]["source"] == "office" for block in doc.blocks)
 
 
 def test_xlsx_keeps_the_cell():
@@ -37,3 +44,7 @@ def test_xlsx_keeps_the_cell():
     cells = [cell for row in table.content["rows"] for cell in row["cells"]]
     assert any(cell["text"] == "128.5" for cell in cells)
     assert table.source.sheet == "Financials"
+    assert table.page_start == 0
+    assert table.page_end == 0
+    assert table.order_confidence == 1.0
+    assert table.links["table_merge"]["merged"] is False

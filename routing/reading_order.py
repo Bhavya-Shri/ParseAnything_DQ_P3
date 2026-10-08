@@ -71,43 +71,58 @@ def _order_section(
     section: LayoutSection,
 ) -> list[Region]:
 
-    if not section.regions:
+    regions = list(section.regions)
+
+    if not regions:
         return []
 
-    full_width = [
-        region
-        for region in section.regions
-        if region.is_full_width
-    ]
+    column_ids = {
+        region.column_id
+        for region in regions
+        if region.column_id is not None
+    }
 
-    column_regions = [
-        region
-        for region in section.regions
-        if not region.is_full_width
-    ]
-
-    if not column_regions:
-        return _sort_full_width_regions(
-            full_width
+    if len(column_ids) < 2:
+        return sorted(
+            regions,
+            key=lambda region: (
+                region.bbox[1],
+                0 if region.is_full_width else 1,
+                region.bbox[0],
+            ),
         )
 
-    column_order = _order_column_regions(
-        column_regions
-    )
+    def overlaps_other_column(region: Region) -> bool:
+        if region.column_id is None:
+            return False
+        for other in regions:
+            if other.column_id is None or other.column_id == region.column_id:
+                continue
+            overlap = min(region.bbox[3], other.bbox[3]) - max(region.bbox[1], other.bbox[1])
+            if overlap > 2:
+                return True
+        return False
 
-    if not full_width:
-        return column_order
+    stacked = [region for region in regions if overlaps_other_column(region)]
+    outside = [region for region in regions if region not in stacked]
+    outside_sorted = _sort_full_width_regions(outside)
+    if not stacked:
+        return outside_sorted
 
-    all_regions = full_width + column_order
+    stack_top = min(region.bbox[1] for region in stacked)
+    ordered = []
+    inserted = False
 
-    return sorted(
-        all_regions,
-        key=lambda region: (
-            region.bbox[1],
-            0 if region.is_full_width else 1,
-            region.bbox[0],
-        ),
-    )
+    for region in outside_sorted:
+        if not inserted and region.bbox[1] >= stack_top - 1:
+            ordered.extend(_order_column_regions(stacked))
+            inserted = True
+        ordered.append(region)
+
+    if not inserted:
+        ordered.extend(_order_column_regions(stacked))
+
+    return ordered
 
 
 def _keep_heading_with_content(
@@ -310,6 +325,15 @@ def reconstruct_reading_order(
             section_confidence[
                 region.region_id
             ] = section.confidence
+
+    headers = [region for region in ordered if region.is_header]
+    footers = [region for region in ordered if region.is_footer]
+    body = [
+        region
+        for region in ordered
+        if not region.is_header and not region.is_footer
+    ]
+    ordered = headers + body + footers
 
     _mark_ambiguous_regions(
         ordered

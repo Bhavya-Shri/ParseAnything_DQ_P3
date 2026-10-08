@@ -1,5 +1,6 @@
 import fitz
 
+from routing.structure import inspect_page
 from .route_models import PageProfile
 
 
@@ -199,6 +200,13 @@ def profile_page(page) -> PageProfile:
         estimated_columns
     )
 
+    structure = inspect_page(page)
+    resolved = (
+        structure["has_tables"]
+        or structure["has_chart"]
+        or structure["has_formula"]
+    )
+
     return PageProfile(
         page_number=page.number + 1,
         width=width,
@@ -211,13 +219,14 @@ def profile_page(page) -> PageProfile:
         is_sparse=is_sparse,
         estimated_columns=estimated_columns,
         column_confidence=column_confidence,
-        has_tables=False,
-        has_figures=image_count > 0,
-        has_formula_like_regions=False,
+        has_tables=structure["has_tables"],
+        has_figures=image_count > 0 or structure["has_chart"],
+        has_formula_like_regions=structure["has_formula"],
         complexity=complexity,
         metadata={
             "source": "pymupdf",
             "rotation": page.rotation,
+            "structure_resolved": resolved and complexity != "high" and estimated_columns <= 1,
         },
     )
 

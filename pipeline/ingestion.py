@@ -29,7 +29,7 @@ def ingest_document(file_path: str, preflight_data: dict) -> dict:
     # --------------------------------------------------
     # PDF ingestion
     # --------------------------------------------------
-    if format_type == "pdf":
+    if format_type in {"pdf", "png", "jpg", "jpeg"}:
         try:
             logger.info("Loading PDF with PyMuPDF...")
 

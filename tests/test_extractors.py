@@ -174,6 +174,7 @@ def test_make_block_sets_required_fields():
     assert block.extractor == "pymupdf"
     assert block.bbox == [72.0, 80.0, 520.0, 120.0]
     assert block.page_start == 1
+    assert block.page_end == 1
     assert block.confidence.extraction == 0.9
     assert block.confidence.final == 0.9
     assert block.reading_order == 0
